@@ -2,7 +2,7 @@
 
 # As an argument for this script, you can choose the directory to link to the host directory
 # Choose between: ssowat, moulinette, yunohost, yunohost-admin or all
-dir_to_mount={$1:-all}
+dir_to_mount=${1:-all}
 if [ "$1" == "--no-mount" ]
 then
 	dir_to_mount=all
@@ -54,6 +54,13 @@ create_sym_link () {
     # Symlink from Git repository
 	sudo ln -sfn $dest $link
 }
+
+# Umount directory before playing with it
+if sudo mount | grep --quiet ${ynh_dev_dir}
+then
+	echo_info "Umount shared directory ${ynh_dev_dir}"
+	sudo umount ${ynh_dev_dir}
+fi
 
 # ssowat
 if [ "$dir_to_mount" == "ssowat" ] || [ "$dir_to_mount" == "all" ]
