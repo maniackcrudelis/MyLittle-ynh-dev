@@ -55,6 +55,15 @@ create_sym_link () {
 	sudo ln -sfn $dest $link
 }
 
+# Mount ynh-dev directory from the host
+mount_directory () {
+	if [ $doImount -eq 1 ]
+	then
+		echo_info "Mount shared directory from ynh-dev"
+		sudo mount -o defaults -t vboxsf ynh-dev ${ynh_dev_dir}
+	fi
+}
+
 # Umount directory before playing with it
 if sudo mount | grep --quiet ${ynh_dev_dir}
 then
@@ -66,6 +75,7 @@ fi
 if [ "$dir_to_mount" == "ssowat" ] || [ "$dir_to_mount" == "all" ]
 then
 	create_sym_link "${ynh_dev_dir}/ssowat" "/usr/share/ssowat"
+	mount_directory
 	echo_success "Now using Git repository for SSOwat"
 fi
 
@@ -74,6 +84,7 @@ if [ "$dir_to_mount" == "moulinette" ] || [ "$dir_to_mount" == "all" ]
 then
 	create_sym_link "${ynh_dev_dir}/moulinette/locales" "/usr/share/moulinette/locale"
 	create_sym_link "${ynh_dev_dir}/moulinette/moulinette" "/usr/lib/python2.7/dist-packages/moulinette"
+	mount_directory
 	echo_success "Now using Git repository for Moulinette"
 fi
 
@@ -109,19 +120,35 @@ then
 	# locales
 	create_sym_link "${ynh_dev_dir}/yunohost/locales" "/usr/lib/moulinette/yunohost/locales"
 
+	mount_directory
+
 	echo_success "Now using Git repository for YunoHost"
 fi
 
 # yunohost-admin
 if [ "$dir_to_mount" == "yunohost-admin" ] || [ "$dir_to_mount" == "all" ]
 then
-	sudo mkdir -p ${ynh_dev_dir}/yunohost-admin/src
+	create_sym_link "${ynh_dev_dir}/yunohost-admin/src" "/usr/share/yunohost/admin"
+
+	mount_directory
 
 	getent passwd ynhdev > /dev/null
 	if [ $? -eq 2 ]; then
 		sudo useradd ynhdev
-		sudo chown -R ynhdev: ${ynh_dev_dir}/yunohost-admin
 	fi
+
+	bower_dir=$(mktemp --directory)
+	sudo chmod 755 $bower_dir
+	sudo mkdir -p ${ynh_dev_dir}/yunohost-admin/src/bower_components
+	sudo mount -o bind $bower_dir ${ynh_dev_dir}/yunohost-admin/src/bower_components
+	sudo chown -R ynhdev: ${ynh_dev_dir}/yunohost-admin/src/bower_components
+
+	dist_dir=$(mktemp --directory)
+	sudo chmod 755 $dist_dir
+	sudo mkdir -p ${ynh_dev_dir}/yunohost-admin/src/dist
+	sudo mount -o bind $dist_dir ${ynh_dev_dir}/yunohost-admin/src/dist
+	sudo chown -R ynhdev: ${ynh_dev_dir}/yunohost-admin/src/dist
+
 	pushd ${ynh_dev_dir}/yunohost-admin/src
 	# Install npm dependencies if needed
 	which gulp > /dev/null
@@ -137,9 +164,9 @@ then
 		sudo npm install -g gulp
 	fi
 	sudo su -c "bower install" ynhdev
+	sudo npm install gulp --no-bin-links
+	sudo npm install --no-bin-links
 	sudo su -c "gulp build --dev" ynhdev
-
-	create_sym_link "${ynh_dev_dir}/yunohost-admin/src" "/usr/share/yunohost/admin"
 
 	echo_success "Now using Git repository for yunohost-admin"
 
@@ -155,13 +182,8 @@ then
 		sudo su -c "gulp watch --dev" ynhdev
 	fi
 
+	sudo umount ${ynh_dev_dir}/yunohost-admin/src/bower_components
+	sudo umount ${ynh_dev_dir}/yunohost-admin/src/dist
+
 	popd
-fi
-
-
-# Mount ynh-dev directory from the host
-if [ $doImount -eq 1 ]
-then
-	echo_info "Mount shared directory from ynh-dev"
-	sudo mount -o defaults -t vboxsf ynh-dev ${ynh_dev_dir}
 fi
